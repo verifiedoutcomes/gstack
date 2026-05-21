@@ -5,7 +5,8 @@ first-principles spacecraft physics (solar generation, radiative cooling, mass) 
 full discounted-cash-flow economic model (CapEx, OpEx, revenue, NPV/IRR/payback) and
 benchmarks the result against an **equal-power terrestrial data center**.
 
-Built with Streamlit, NumPy/Pandas, Plotly and numpy-financial.
+Built with Streamlit, NumPy/Pandas, Plotly and numpy-financial. Ships with a
+light/dark mode toggle and a clean, minimal visual system.
 
 ## Quick start
 
@@ -44,8 +45,15 @@ Then open the URL Streamlit prints (default http://localhost:8501).
   hardware value), and ops/management.
 - **Revenue:** `$/GPU-hour × GPUs × utilization × 8760`, or a `$/FLOP` mode, with optional
   annual degradation.
-- **Metrics:** NPV and IRR (via numpy-financial, with graceful "N/A" when no real IRR
-  root exists) and payback period in months (interpolated on a monthly cash-flow series).
+- **Tax, depreciation & inflation:** a custom tax rate with optional loss carry-forward;
+  depreciation by straight-line-over-life (default) or an overridden scheme — SLN over a
+  chosen recovery period, declining balance, or a MACRS class (3/5/7/10/15/20 yr); and
+  inflation from a base year. Results are reported pre- and post-tax in both real and
+  nominal dollars. (Depreciation is non-cash and front/back-loads the tax shield;
+  inflation's bite shows up through tax, since depreciation is a fixed nominal deduction.)
+- **Metrics:** pre- and post-tax NPV (inflation-invariant under consistent discounting),
+  nominal and real IRR (via numpy-financial, with graceful "N/A" when no real root
+  exists), and an interpolated payback period.
 - **Terrestrial comparison:** equal-power ground data center (energy × PUE × grid price,
   plus land/water/ops and amortized build cost), with the **crossover** launch cost and
   grid power price at which orbital total cost of ownership matches terrestrial.
@@ -91,5 +99,8 @@ tests/            pytest suite for the engines
 
 The suite covers the physics (Stefan-Boltzmann flux, solar/radiator sizing, two-sided
 halving, mass monotonicity, survivability), the financials against numpy-financial
-ground truth (NPV, IRR, payback interpolation), and that every preset loads, stays
-thermally survivable, and runs the full pipeline.
+ground truth (NPV, IRR, payback interpolation), depreciation schemes (each totals the
+basis; MACRS tables sum to 1; declining balance front-loads), tax loss carry-forward,
+inflation, and that every preset loads, stays thermally survivable, and runs the full
+pipeline. A headless `AppTest` smoke test renders the app (and switches presets) without
+a browser.
