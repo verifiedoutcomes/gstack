@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import numpy as np
 import pandas as pd
 
 
@@ -85,6 +84,16 @@ class SystemConfig:
     terrestrial_ground_ops_annual: float = 4_000_000.0
     terrestrial_capex_per_MW: float = 10_000_000.0
 
+    # --- Tax, depreciation & inflation ---
+    tax_rate: float = 0.30
+    enable_tax_loss_carryforward: bool = True
+    overwrite_depreciation: bool = False  # off = straight-line over the project life
+    depreciation_scheme: str = "SLN"  # "SLN" | "DB" | "MACRS"
+    depreciation_years_sln: int = 20  # SLN recovery period
+    depreciation_rate_db: float = 0.05  # declining-balance rate
+    macrs_years: int = 5  # MACRS recovery class (3/5/7/10/15/20)
+    inflation_rate: float = 0.025  # annual inflation from the base year
+
 
 @dataclass
 class PhysicsResult:
@@ -109,18 +118,28 @@ class PhysicsResult:
 
 @dataclass
 class EconomicsResult:
-    """Outputs of the economic engine for one configuration."""
+    """Outputs of the economic engine for one configuration.
+
+    NPV is inflation-invariant under consistent discounting, so a single pre-tax and
+    post-tax value is reported. IRR differs in real vs nominal terms, so both are given.
+    """
 
     capex_total: float
     capex_breakdown: dict[str, float]
     opex_annual: float
     opex_breakdown: dict[str, float]
     revenue_annual: float
+    depreciation_basis: float
     cashflow_df: pd.DataFrame
-    cumulative_cashflow: np.ndarray
-    npv: float
-    irr: float | None
-    payback_months: float | None
+    npv_pretax: float
+    npv_posttax: float
+    irr_pretax: float | None  # nominal
+    irr_posttax: float | None  # nominal
+    irr_pretax_real: float | None
+    irr_posttax_real: float | None
+    real_discount_rate: float | None
+    payback_months: float | None  # post-tax, nominal
+    total_tax: float
     terrestrial_tco: float
     orbital_tco: float
     crossover_launch_cost: float | None
@@ -173,5 +192,22 @@ def validate_config(cfg: SystemConfig) -> tuple[list[str], list[str]]:
         warnings.append("Structural mass multiplier below 1.0 implies negative structure mass.")
     if cfg.annual_degradation_pct >= 0.5:
         warnings.append("Annual degradation >= 50%/yr will collapse output within a year or two.")
+
+    # Tax / depreciation / inflation
+    if not 0.0 <= cfg.tax_rate < 1.0:
+        errors.append("Tax rate must be between 0% and 100%.")
+    if cfg.inflation_rate <= -1.0:
+        errors.append("Inflation rate must be greater than -100%.")
+    elif cfg.inflation_rate >= 0.25:
+        warnings.append(f"Inflation of {cfg.inflation_rate:.0%}/yr is very high.")
+    if cfg.overwrite_depreciation:
+        if cfg.depreciation_scheme not in ("SLN", "DB", "MACRS"):
+            errors.append("Depreciation scheme must be SLN, DB or MACRS.")
+        if cfg.depreciation_scheme == "SLN" and cfg.depreciation_years_sln < 1:
+            errors.append("SLN expenditure years must be at least 1.")
+        if cfg.depreciation_scheme == "DB" and not 0.0 < cfg.depreciation_rate_db <= 1.0:
+            errors.append("Declining-balance rate must be between 0% and 100%.")
+        if cfg.depreciation_scheme == "MACRS" and cfg.macrs_years not in (3, 5, 7, 10, 15, 20):
+            errors.append("MACRS recovery class must be one of 3, 5, 7, 10, 15 or 20 years.")
 
     return errors, warnings

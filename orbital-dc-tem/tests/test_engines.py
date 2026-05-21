@@ -103,14 +103,14 @@ def test_irr_known_series_matches_numpy_financial():
     assert got == pytest.approx(float(expected), abs=1e-6)
 
 
-def test_payback_none_when_never_recovers():
-    monthly = np.linspace(-1000.0, -500.0, 60)  # always underwater
-    assert econ.compute_payback_months(monthly) is None
+def test_zero_crossing_none_when_never_recovers():
+    series = np.linspace(-1000.0, -500.0, 60)  # always underwater
+    assert econ.zero_crossing_period(series) is None
 
 
-def test_payback_interpolation():
-    monthly = np.array([-100.0, -50.0, 50.0])  # crosses zero halfway between idx 1 and 2
-    assert econ.compute_payback_months(monthly) == pytest.approx(1.5)
+def test_zero_crossing_interpolation():
+    series = np.array([-100.0, -50.0, 50.0])  # crosses zero halfway between idx 1 and 2
+    assert econ.zero_crossing_period(series) == pytest.approx(1.5)
 
 
 def test_capex_breakdown_sums_to_total():
@@ -150,4 +150,70 @@ def test_preset_full_pipeline(name):
     result = econ.run_economics(cfg, physics)
     assert result.capex_total > 0
     assert len(result.cashflow_df) == cfg.lifespan_years + 1
-    assert np.isfinite(result.npv)
+    assert np.isfinite(result.npv_posttax)
+    assert np.isfinite(result.npv_pretax)
+
+
+# --------------------------------------------------------------------------- depreciation / tax / inflation
+def test_depreciation_default_is_straight_line_over_life():
+    cfg = replace(SystemConfig(), lifespan_years=10, overwrite_depreciation=False)
+    dep = econ.depreciation_schedule(1000.0, cfg)
+    assert len(dep) == 10
+    assert np.allclose(dep, 100.0)
+
+
+@pytest.mark.parametrize("scheme,kw", [
+    ("SLN", {"depreciation_years_sln": 20}),
+    ("DB", {"depreciation_rate_db": 0.10}),
+    ("MACRS", {"macrs_years": 5}),
+])
+def test_depreciation_schemes_total_full_basis(scheme, kw):
+    cfg = replace(SystemConfig(), lifespan_years=10, overwrite_depreciation=True,
+                  depreciation_scheme=scheme, **kw)
+    dep = econ.depreciation_schedule(1000.0, cfg)
+    assert dep.sum() == pytest.approx(1000.0, abs=1e-3)  # terminal write-off recovers all basis
+    assert np.all(dep >= 0)
+
+
+def test_macrs_tables_sum_to_one():
+    for years, table in econ.MACRS_TABLES.items():
+        assert sum(table) == pytest.approx(1.0, abs=1e-3)
+
+
+def test_declining_balance_front_loads_vs_straight_line():
+    cfg_db = replace(SystemConfig(), lifespan_years=10, overwrite_depreciation=True,
+                     depreciation_scheme="DB", depreciation_rate_db=0.30)
+    cfg_sln = replace(SystemConfig(), lifespan_years=10, overwrite_depreciation=False)
+    dep_db = econ.depreciation_schedule(1000.0, cfg_db)
+    dep_sln = econ.depreciation_schedule(1000.0, cfg_sln)
+    assert dep_db[0] > dep_sln[0]  # accelerated takes more in year 1
+
+
+def test_tax_loss_carryforward_defers_tax():
+    # Pin revenue to 1000/yr via per-FLOP mode; year-1 depreciation of 1200 forces a loss
+    # (1000 - 100 - 1200 = -300) that a carry-forward can use against year-2's 900 gain.
+    cfg = replace(
+        SystemConfig(), lifespan_years=2, tax_rate=0.30, inflation_rate=0.0,
+        overwrite_depreciation=False, enable_degradation=False,
+        revenue_mode="per_flop", revenue_per_flop=1.0, flops_per_system=1000.0, utilization=1.0,
+    )
+    dep = np.array([1200.0, 0.0])
+    with_cf = econ.build_financials(replace(cfg, enable_tax_loss_carryforward=True), 1000.0, 100.0, dep)
+    without_cf = econ.build_financials(replace(cfg, enable_tax_loss_carryforward=False), 1000.0, 100.0, dep)
+    assert without_cf["tax_paid"].sum() == pytest.approx(270.0)  # 0 then 0.30 * 900
+    assert with_cf["tax_paid"].sum() == pytest.approx(180.0)  # 0 then 0.30 * (900 - 300)
+
+
+def test_inflation_raises_nominal_cashflow():
+    cfg0 = replace(SystemConfig(), inflation_rate=0.0)
+    cfg5 = replace(SystemConfig(), inflation_rate=0.05)
+    dep = np.zeros(cfg0.lifespan_years)
+    df0 = econ.build_financials(cfg0, 1_000_000.0, 100_000.0, dep)
+    df5 = econ.build_financials(cfg5, 1_000_000.0, 100_000.0, dep)
+    # Final-year nominal revenue is higher under inflation.
+    assert df5["nominal_revenue"].iloc[-1] > df0["nominal_revenue"].iloc[-1]
+
+
+def test_real_rate_fisher_relation():
+    assert econ.to_real_rate(0.10, 0.025) == pytest.approx((1.10 / 1.025) - 1.0)
+    assert econ.to_real_rate(None, 0.025) is None
