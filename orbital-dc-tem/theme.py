@@ -14,37 +14,40 @@ import plotly.io as pio
 FONT_FAMILY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
 PALETTE_LIGHT = {
-    "ink": "#0A0A0A",
-    "muted": "#6B7280",
-    "grid": "#EEEEEE",
-    "paper": "#FFFFFF",
-    "sidebar": "#FAFAFA",
-    "card": "#FAFAFA",
+    "ink": "#1F1B17",       # warm near-black
+    "muted": "#6B5D52",     # warm gray
+    "grid": "#E8E3D9",      # warm light grid
+    "paper": "#FBFAF7",     # warm off-white
+    "sidebar": "#F4F1EA",
+    "card": "#F7F4ED",
     "input": "#FFFFFF",
-    "border": "#E5E7EB",
-    "accent": "#FF5C35",
-    "neutral": "#9CA3AF",
+    "border": "#E8E3D9",
+    "accent": "#E8552D",    # warm coral
+    "neutral": "#9C9489",
     "positive": "#1F9D72",
     "negative": "#D1453B",
 }
 
+# Dark palette tuned after steipete.me: a deep slate paper, vivid orange accent, and a
+# distinctive amber-burnt border for every surface -- gives the dark mode a warm warm
+# edge against the cool slate ground.
 PALETTE_DARK = {
-    "ink": "#F5F5F7",
-    "muted": "#9CA3AF",
-    "grid": "#2A2A2E",
-    "paper": "#0E0E11",
-    "sidebar": "#131317",
-    "card": "#17171C",
-    "input": "#1C1C22",
-    "border": "#2A2A2E",
-    "accent": "#FF6F4D",
-    "neutral": "#6B7280",
+    "ink": "#EAEDF3",       # warm white
+    "muted": "#9CA5BC",     # slate gray
+    "grid": "#2E3447",      # subtle slate gridlines (charts only)
+    "paper": "#212737",     # slate ground
+    "sidebar": "#1A2032",
+    "card": "#262D40",
+    "input": "#2E3447",
+    "border": "#AB4B08",    # amber-burnt -- the signature accent border
+    "accent": "#FF6B01",    # vivid orange
+    "neutral": "#7A8299",
     "positive": "#34D399",
     "negative": "#F87171",
 }
 
-_CAPEX_LIGHT = ["#FF8A6B", "#FF5C35", "#E8431F", "#B8330F", "#7A2008"]
-_CAPEX_DARK = ["#FFC2AE", "#FF9E82", "#FF6F4D", "#E8552D", "#B8451F"]
+_CAPEX_LIGHT = ["#FFB59E", "#FF8A6B", "#E8552D", "#B8330F", "#7A2008"]
+_CAPEX_DARK = ["#FFD2B5", "#FFA877", "#FF7849", "#FF6B01", "#AB4B08"]
 
 
 def get_palette(mode: str) -> dict[str, str]:
@@ -56,9 +59,13 @@ def get_capex_colors(mode: str) -> list[str]:
 
 
 def get_diverging(mode: str) -> list:
-    """Diverging colorscale for the advantage map; pair with zmid=0 (negative -> positive)."""
+    """Diverging colorscale for the advantage map; pair with zmid=0 (negative -> positive).
+
+    Midpoint is keyed off the active paper colour so the zero crossover fades cleanly
+    into the chart background -- "no opinion here" reads as ambient.
+    """
     pal = get_palette(mode)
-    midpoint = "#2A2A2E" if mode == "dark" else "#F4EDE9"
+    midpoint = "#2E3447" if mode == "dark" else "#F0EBE0"
     return [[0.0, pal["negative"]], [0.5, midpoint], [1.0, pal["positive"]]]
 
 
