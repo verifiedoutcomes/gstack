@@ -28,3 +28,12 @@ def test_app_switches_presets_without_exception(preset):
     at = AppTest.from_file(APP_PATH, default_timeout=60).run()
     at.selectbox(key="preset_select").select(preset).run()
     assert at.exception == []
+
+
+def test_app_switches_to_eur_without_exception():
+    at = AppTest.from_file(APP_PATH, default_timeout=60).run()
+    at.selectbox(key="display_currency").select("EUR").run()
+    assert at.exception == []
+    # KPI labels are currency-independent; values change but labels stay.
+    labels = [m.label for m in at.metric]
+    assert "Total CapEx" in labels and "NPV" in labels

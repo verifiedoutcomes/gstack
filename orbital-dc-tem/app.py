@@ -27,7 +27,16 @@ register_themes()
 
 # Dark/light toggle must be read before injecting CSS and theming charts.
 dark_mode = st.sidebar.toggle("Dark mode", value=False, key="dark_mode")
+display_currency = st.sidebar.selectbox("Currency", ["USD", "EUR"], key="display_currency")
+exchange_rate = st.sidebar.number_input(
+    "USD per EUR", min_value=0.5, max_value=2.0, value=1.08, step=0.01,
+    key="usd_per_eur", disabled=(display_currency == "USD"),
+    help="Exchange rate. 1.08 means 1 EUR = 1.08 USD.",
+)
+st.sidebar.caption("Inputs in USD. Outputs shown in the selected currency.")
 MODE = "dark" if dark_mode else "light"
+CURRENCY_SYMBOL = "$" if display_currency == "USD" else "€"
+CURRENCY_FACTOR = 1.0 if display_currency == "USD" else (1.0 / exchange_rate)
 PAL = get_palette(MODE)
 CAPEX_COLORS = get_capex_colors(MODE)
 DIVERGING = get_diverging(MODE)
@@ -40,22 +49,27 @@ CONFIG_FIELDS = [f.name for f in fields(SystemConfig)]
 
 # --------------------------------------------------------------------------- helpers
 def fmt_money(x: float | None) -> str:
+    """Money in the active display currency (the model stores USD)."""
     if x is None or not np.isfinite(x):
         return "N/A"
-    sign = "-" if x < 0 else ""
-    v = abs(x)
-    if v >= 1e9:
-        return f"{sign}${v / 1e9:,.2f}B"
-    if v >= 1e6:
-        return f"{sign}${v / 1e6:,.1f}M"
-    if v >= 1e3:
-        return f"{sign}${v / 1e3:,.0f}k"
-    return f"{sign}${v:,.0f}"
+    v = x * CURRENCY_FACTOR
+    sign = "-" if v < 0 else ""
+    a = abs(v)
+    sym = CURRENCY_SYMBOL
+    if a >= 1e9:
+        return f"{sign}{sym}{a / 1e9:,.2f}B"
+    if a >= 1e6:
+        return f"{sign}{sym}{a / 1e6:,.1f}M"
+    if a >= 1e3:
+        return f"{sign}{sym}{a / 1e3:,.0f}k"
+    return f"{sign}{sym}{a:,.0f}"
 
 
 def fmt_rate(x: float | None) -> str:
-    """Per-hour dollars, cents preserved."""
-    return "N/A" if x is None or not np.isfinite(x) else f"${x:,.2f}"
+    """Per-hour money in the active currency, cents preserved."""
+    if x is None or not np.isfinite(x):
+        return "N/A"
+    return f"{CURRENCY_SYMBOL}{x * CURRENCY_FACTOR:,.2f}"
 
 
 def fmt_pct(x: float | None) -> str:
@@ -216,13 +230,14 @@ for note in physics.notes:
 def cashflow_fig(column: str, label: str) -> go.Figure:
     df = economics.cashflow_df
     raw = df[column].to_numpy()
+    y = raw * CURRENCY_FACTOR / 1e6
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=df["year"], y=raw / 1e6, mode="lines+markers",
+            x=df["year"], y=y, mode="lines+markers",
             line=dict(color=PAL["accent"], width=3),
             marker=dict(size=7), name="Cumulative cash flow",
-            hovertemplate="Year %{x}: $%{y:.1f}M<extra></extra>",
+            hovertemplate=f"Year %{{x}}: {CURRENCY_SYMBOL}%{{y:.1f}}M<extra></extra>",
         )
     )
     fig.add_hline(y=0, line_dash="dash", line_color=PAL["muted"], line_width=1)
@@ -234,7 +249,10 @@ def cashflow_fig(column: str, label: str) -> go.Figure:
             showarrow=True, arrowhead=2, ax=40, ay=-40,
             font=dict(color=PAL["positive"], size=12),
         )
-    fig.update_layout(title=f"Cumulative cash flow ({label})", xaxis_title="Year", yaxis_title="$M")
+    fig.update_layout(
+        title=f"Cumulative cash flow ({label})",
+        xaxis_title="Year", yaxis_title=f"{CURRENCY_SYMBOL}M",
+    )
     return apply_theme(fig, MODE, height=380)
 
 
@@ -243,13 +261,13 @@ def capex_fig() -> go.Figure:
     for (label, value), color in zip(economics.capex_breakdown.items(), CAPEX_COLORS):
         fig.add_trace(
             go.Bar(
-                y=["CapEx"], x=[value / 1e6], name=label, orientation="h",
+                y=["CapEx"], x=[value * CURRENCY_FACTOR / 1e6], name=label, orientation="h",
                 marker_color=color,
-                hovertemplate=f"{label}: $%{{x:.1f}}M<extra></extra>",
+                hovertemplate=f"{label}: {CURRENCY_SYMBOL}%{{x:.1f}}M<extra></extra>",
             )
         )
     fig.update_layout(
-        title="CapEx breakdown ($M)", barmode="stack", xaxis_title=None,
+        title=f"CapEx breakdown ({CURRENCY_SYMBOL}M)", barmode="stack", xaxis_title=None,
         yaxis=dict(showticklabels=False),
         legend=dict(orientation="h", yanchor="top", y=-0.25, x=0.0),
     )
@@ -279,11 +297,15 @@ def sensitivity_fig() -> go.Figure:
     launch_hi = max(cfg.launch_cost_per_kg * 2, 3000)
     grid_hi = max(cfg.grid_cost_per_kWh * 2, 0.20)
     launches, grids, z = advantage_grid(dict(cfg.__dict__), launch_hi, grid_hi, 40)
+    z_display = z * CURRENCY_FACTOR
     fig = go.Figure(
         go.Heatmap(
-            x=launches, y=grids, z=z, colorscale=DIVERGING, zmid=0,
-            colorbar=dict(title="$M"),
-            hovertemplate="Launch $%{x:.0f}/kg, grid $%{y:.3f}/kWh<br>advantage $%{z:.0f}M<extra></extra>",
+            x=launches, y=grids, z=z_display, colorscale=DIVERGING, zmid=0,
+            colorbar=dict(title=f"{CURRENCY_SYMBOL}M"),
+            hovertemplate=(
+                "Launch $%{x:.0f}/kg, grid $%{y:.3f}/kWh<br>"
+                f"advantage {CURRENCY_SYMBOL}%{{z:.0f}}M<extra></extra>"
+            ),
         )
     )
     fig.add_trace(
@@ -338,12 +360,12 @@ with st.expander("Tax & depreciation schedule"):
     schedule = pd.DataFrame(
         {
             "Year": s["year"].astype(int),
-            "Revenue ($M)": (s["nominal_revenue"] / 1e6).round(2),
-            "OpEx ($M)": (s["nominal_opex"] / 1e6).round(2),
-            "Depreciation ($M)": (s["depreciation"] / 1e6).round(2),
-            "Taxable ($M)": (s["taxable_income"] / 1e6).round(2),
-            "Tax ($M)": (s["tax_paid"] / 1e6).round(2),
-            "Loss c/f ($M)": (s["loss_carryforward"] / 1e6).round(2),
+            f"Revenue ({CURRENCY_SYMBOL}M)": (s["nominal_revenue"] * CURRENCY_FACTOR / 1e6).round(2),
+            f"OpEx ({CURRENCY_SYMBOL}M)": (s["nominal_opex"] * CURRENCY_FACTOR / 1e6).round(2),
+            f"Depreciation ({CURRENCY_SYMBOL}M)": (s["depreciation"] * CURRENCY_FACTOR / 1e6).round(2),
+            f"Taxable ({CURRENCY_SYMBOL}M)": (s["taxable_income"] * CURRENCY_FACTOR / 1e6).round(2),
+            f"Tax ({CURRENCY_SYMBOL}M)": (s["tax_paid"] * CURRENCY_FACTOR / 1e6).round(2),
+            f"Loss c/f ({CURRENCY_SYMBOL}M)": (s["loss_carryforward"] * CURRENCY_FACTOR / 1e6).round(2),
         }
     )
     st.dataframe(schedule, hide_index=True, width="stretch")
@@ -385,8 +407,10 @@ else:
 
 cross = []
 if economics.crossover_launch_cost is not None:
-    cross.append(f"orbital wins below **${economics.crossover_launch_cost:,.0f}/kg** launch cost")
+    val = economics.crossover_launch_cost * CURRENCY_FACTOR
+    cross.append(f"orbital wins below **{CURRENCY_SYMBOL}{val:,.0f}/kg** launch cost")
 if economics.crossover_power_cost is not None:
-    cross.append(f"orbital wins above **${economics.crossover_power_cost:,.3f}/kWh** terrestrial grid power")
+    val = economics.crossover_power_cost * CURRENCY_FACTOR
+    cross.append(f"orbital wins above **{CURRENCY_SYMBOL}{val:,.3f}/kWh** terrestrial grid power")
 if cross:
     st.caption("Crossover points (holding everything else fixed): " + "; ".join(cross) + ".")
