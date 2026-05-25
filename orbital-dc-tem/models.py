@@ -25,8 +25,8 @@ class SystemConfig:
 
     # --- Compute infrastructure ---
     num_racks: int = 50
-    power_per_rack_kW: float = 100.0
-    gpus_per_rack: int = 72
+    power_per_rack_kW: float = 132.0  # NVIDIA GB200 NVL72 reference rack
+    gpus_per_rack: int = 72  # 72 B200 GPUs per NVL72
     parasitic_overhead_fraction: float = 0.10  # comms/ADCS/thermal-loop draw on top of compute
 
     # --- Solar ---
@@ -43,7 +43,7 @@ class SystemConfig:
     radiator_areal_density_kg_m2: float = 8.0  # deployable radiator mass per m^2 (5-12)
 
     # --- Mass ---
-    rack_mass_kg: float = 900.0
+    rack_mass_kg: float = 1360.0  # NVIDIA GB200 NVL72 = ~1.36 metric tonnes per rack
     structural_mass_multiplier: float = 1.5  # bus/structure factor on subsystem mass (1.0 = none)
 
     # --- Degradation (optional) ---

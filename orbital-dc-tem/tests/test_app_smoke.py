@@ -23,7 +23,7 @@ def test_app_runs_default_without_exception():
         assert expected in labels
 
 
-@pytest.mark.parametrize("preset", ["Starcloud", "First-Principles Rack-Sat"])
+@pytest.mark.parametrize("preset", ["Starcloud", "First-Principles Rack-Sat", "NVIDIA GB200 NVL72 (reference)"])
 def test_app_switches_presets_without_exception(preset):
     at = AppTest.from_file(APP_PATH, default_timeout=60).run()
     at.selectbox(key="preset_select").select(preset).run()

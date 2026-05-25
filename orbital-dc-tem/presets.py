@@ -145,8 +145,56 @@ FIRST_PRINCIPLES_RACK_SAT = SystemConfig(
     terrestrial_capex_per_MW=10_000_000.0,
 )
 
+NVIDIA_GB200_NVL72 = SystemConfig(
+    name="NVIDIA GB200 NVL72 (reference)",
+    # One satellite = one NVIDIA GB200 NVL72 rack -- the current state-of-the-art AI
+    # reference design. Specs from NVIDIA / SemiAnalysis: 72 B200 + 36 Grace CPUs,
+    # 132 kW per rack (115 kW liquid + 17 kW air), 1.36 t mass, ~$2-3M list, 1.44
+    # exaFLOPS FP4.
+    num_racks=1,
+    power_per_rack_kW=132.0,
+    gpus_per_rack=72,
+    parasitic_overhead_fraction=0.10,
+    panel_efficiency=0.32,
+    illumination_fraction=0.99,
+    solar_areal_density_kg_m2=1.5,
+    radiator_emissivity=0.90,
+    T_sink_K=3.0,
+    T_surface_max_K=318.0,
+    radiator_sides=2,
+    radiator_width_m=4.0,
+    radiator_areal_density_kg_m2=8.0,
+    rack_mass_kg=1360.0,
+    structural_mass_multiplier=1.5,
+    enable_degradation=True,
+    annual_degradation_pct=0.025,
+    launch_cost_per_kg=500.0,
+    altitude_km=600.0,
+    lifespan_years=10,
+    rack_unit_cost=2_500_000.0,  # mid of NVIDIA's reported $2-3M range
+    space_qualification_premium=1.5,
+    solar_cost_per_m2=300.0,
+    radiator_cost_per_m2=1_000.0,
+    rd_integration_overhead_pct=0.20,
+    ground_station_cost_annual=600_000.0,
+    stationkeeping_cost_annual=400_000.0,
+    insurance_pct_of_hardware=0.06,
+    terrestrial_ops_cost_annual=800_000.0,
+    revenue_mode="per_gpu_hour",
+    revenue_per_gpu_hour=4.00,
+    utilization=0.88,
+    discount_rate=0.10,
+    grid_cost_per_kWh=0.07,
+    pue=1.15,  # NVIDIA-reported PUE for liquid-cooled NVL72 clusters
+    terrestrial_land_cost_annual=200_000.0,
+    terrestrial_water_cost_annual=100_000.0,
+    terrestrial_ground_ops_annual=500_000.0,
+    terrestrial_capex_per_MW=10_000_000.0,
+)
+
 PRESETS: dict[str, SystemConfig] = {
     SUNCATCHER.name: SUNCATCHER,
     STARCLOUD.name: STARCLOUD,
     FIRST_PRINCIPLES_RACK_SAT.name: FIRST_PRINCIPLES_RACK_SAT,
+    NVIDIA_GB200_NVL72.name: NVIDIA_GB200_NVL72,
 }

@@ -46,6 +46,23 @@ PRESET_NAMES = list(PRESETS.keys())
 DEFAULT_PRESET = PRESET_NAMES[0]
 CONFIG_FIELDS = [f.name for f in fields(SystemConfig)]
 
+# Inputs ranked by the tornado chart. Each gets perturbed +/-20% to show how much the
+# post-tax NPV moves -- the longest bars are the highest-leverage cost optimizations.
+TORNADO_FIELDS: tuple[tuple[str, str], ...] = (
+    ("launch_cost_per_kg", "Launch cost ($/kg)"),
+    ("rack_unit_cost", "Rack hardware unit cost"),
+    ("revenue_per_gpu_hour", "Revenue per GPU-hour"),
+    ("space_qualification_premium", "Space-qualification premium"),
+    ("rd_integration_overhead_pct", "R&D + integration overhead"),
+    ("insurance_pct_of_hardware", "Annual insurance rate"),
+    ("solar_cost_per_m2", "Solar manufacturing $/m²"),
+    ("radiator_cost_per_m2", "Radiator manufacturing $/m²"),
+    ("panel_efficiency", "Solar panel efficiency"),
+    ("radiator_areal_density_kg_m2", "Radiator areal density"),
+    ("utilization", "Utilization"),
+    ("annual_degradation_pct", "Annual degradation"),
+)
+
 
 # --------------------------------------------------------------------------- helpers
 def fmt_money(x: float | None) -> str:
@@ -293,6 +310,63 @@ def advantage_grid(cfg_dict: dict, launch_hi: float, grid_hi: float, n: int):
     return launches, grids, z
 
 
+@st.cache_data(show_spinner=False)
+def compute_tornado(cfg_dict: dict, field_keys: tuple, delta: float):
+    """For each field, return the post-tax NPV when it's set to value*(1+/-delta).
+
+    Physics runs once per perturbation since several fields (e.g. rack_unit_cost,
+    panel_efficiency) feed into both mass/area and cost.
+    """
+    local = SystemConfig(**cfg_dict)
+    base = econ.run_economics(local, phys.run_physics(local)).npv_posttax
+    rows = []
+    for name in field_keys:
+        cur = float(getattr(local, name))
+        lo_cfg = replace(local, **{name: cur * (1.0 - delta)})
+        hi_cfg = replace(local, **{name: cur * (1.0 + delta)})
+        lo_npv = econ.run_economics(lo_cfg, phys.run_physics(lo_cfg)).npv_posttax
+        hi_npv = econ.run_economics(hi_cfg, phys.run_physics(hi_cfg)).npv_posttax
+        rows.append({"field": name, "low": lo_npv, "high": hi_npv, "swing": abs(hi_npv - lo_npv)})
+    rows.sort(key=lambda r: r["swing"], reverse=True)
+    return base, rows
+
+
+def tornado_fig() -> go.Figure:
+    field_keys = tuple(k for k, _ in TORNADO_FIELDS)
+    label_map = dict(TORNADO_FIELDS)
+    base_npv, rows = compute_tornado(dict(cfg.__dict__), field_keys, 0.20)
+    base_m = base_npv * CURRENCY_FACTOR / 1e6
+    fig = go.Figure()
+    for r in reversed(rows):  # render highest-swing on top of the y-axis
+        lo = min(r["low"], r["high"]) * CURRENCY_FACTOR / 1e6
+        hi = max(r["low"], r["high"]) * CURRENCY_FACTOR / 1e6
+        fig.add_trace(
+            go.Bar(
+                y=[label_map[r["field"]]], x=[hi - lo], base=lo,
+                orientation="h", marker_color=PAL["accent"],
+                customdata=[[r["low"] * CURRENCY_FACTOR / 1e6, r["high"] * CURRENCY_FACTOR / 1e6]],
+                hovertemplate=(
+                    f"<b>{label_map[r['field']]}</b><br>"
+                    f"Input 20% lower: {CURRENCY_SYMBOL}%{{customdata[0]:.1f}}M<br>"
+                    f"Input 20% higher: {CURRENCY_SYMBOL}%{{customdata[1]:.1f}}M"
+                    "<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+    fig.add_vline(
+        x=base_m, line_dash="dash", line_color=PAL["muted"],
+        annotation_text=f"baseline {CURRENCY_SYMBOL}{base_m:,.1f}M",
+        annotation_position="top",
+    )
+    fig.update_layout(
+        title="Cost-leverage tornado · each input ±20% (post-tax NPV)",
+        xaxis_title=f"Post-tax NPV ({CURRENCY_SYMBOL}M)",
+        barmode="overlay", margin=dict(l=240, r=40, t=80, b=56),
+    )
+    return apply_theme(fig, MODE, height=480)
+
+
 def sensitivity_fig() -> go.Figure:
     launch_hi = max(cfg.launch_cost_per_kg * 2, 3000)
     grid_hi = max(cfg.grid_cost_per_kWh * 2, 0.20)
@@ -335,6 +409,13 @@ with right:
     st.plotly_chart(capex_fig(), width="stretch", theme=None)
 
 st.plotly_chart(sensitivity_fig(), width="stretch", theme=None)
+
+st.plotly_chart(tornado_fig(), width="stretch", theme=None)
+st.caption(
+    "Each input was independently perturbed ±20% from the configured baseline; the bar "
+    "shows the resulting post-tax NPV range. Longest bars are the highest-leverage "
+    "components to optimize first."
+)
 
 
 # --------------------------------------------------------------------------- financial detail

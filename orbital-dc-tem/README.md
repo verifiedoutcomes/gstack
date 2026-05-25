@@ -57,6 +57,9 @@ Then open the URL Streamlit prints (default http://localhost:8501).
 - **Terrestrial comparison:** equal-power ground data center (energy × PUE × grid price,
   plus land/water/ops and amortized build cost), with the **crossover** launch cost and
   grid power price at which orbital total cost of ownership matches terrestrial.
+- **Cost-leverage tornado:** every key cost input is independently perturbed ±20% from
+  the active baseline; a horizontal bar chart ranks them by resulting post-tax NPV swing,
+  so the longest bars are the highest-leverage optimizations.
 
 ## Case-study presets (`presets.py`)
 
@@ -68,6 +71,12 @@ economics scale by the number of satellites.
 | **Google Project Suncatcher** | Hyperscale TPU constellation, ~650 km SSO, Starship-class launch ($200/kg) | Marginal — nearly viable on cheap launch |
 | **Starcloud** | SmallSat H100/B200 clusters, premium sovereign/edge billing, $1500/kg launch | Profitable on premium pricing |
 | **First-Principles Rack-Sat** | 1 satellite = 1–3 racks + massive ~350 ft radiators | Thermal-extreme, not yet economic |
+| **NVIDIA GB200 NVL72** | One satellite = one NVL72 reference rack (72 B200 + 36 Grace, 132 kW, 1.36 t, ~$2.5M, 1.44 ExaFLOPS FP4) | Unit economics for the current AI flagship rack |
+
+Default rack mass and power are anchored to NVIDIA's published GB200 NVL72 reference
+(1.36 t, ~132 kW). Sources: [NVIDIA](https://www.nvidia.com/en-us/data-center/gb200-nvl72/),
+[SemiAnalysis BOM](https://newsletter.semianalysis.com/p/gb200-hardware-architecture-and-component),
+[Introl deployment guide](https://introl.com/blog/gb200-nvl72-deployment-72-gpu-liquid-cooled).
 
 > **Scale note.** A single full-fleet hyperscale node (tens of MW) would require a
 > multi-kilometre radiator as one panel, which is unphysical — hence the per-satellite
@@ -85,7 +94,7 @@ app.py            Streamlit UI (sidebar, KPIs, charts, terrestrial card)
 physics_engine.py pure physics  -> PhysicsResult
 economic_engine.py pure economics -> EconomicsResult
 models.py         dataclasses + validate_config
-presets.py        three case-study configs
+presets.py        four case-study configs incl. NVIDIA GB200 NVL72
 constants.py      physical constants
 theme.py          visual system
 tests/            pytest suite for the engines
