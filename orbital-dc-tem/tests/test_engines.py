@@ -20,16 +20,39 @@ from presets import PRESETS
 
 
 # --------------------------------------------------------------------------- physics
-def test_stefan_boltzmann_flux_known():
-    cfg = SystemConfig(radiator_emissivity=0.9, T_sink_K=3.0)
+def test_stefan_boltzmann_flux_known_deep_space():
+    # Deep-space ideal: zero environmental load reproduces the textbook Stefan-Boltzmann value.
+    cfg = SystemConfig(radiator_emissivity=0.9, T_sink_K=3.0, environmental_thermal_load_W_m2=0.0)
     assert phys.radiator_flux(cfg, 318.0) == pytest.approx(521.8, abs=0.5)
 
 
-def test_radiator_area_known_power():
-    cfg = SystemConfig(radiator_emissivity=0.9, T_sink_K=3.0, T_surface_max_K=318.0, radiator_sides=2)
+def test_radiator_area_known_power_deep_space():
+    cfg = SystemConfig(
+        radiator_emissivity=0.9, T_sink_K=3.0, T_surface_max_K=318.0,
+        radiator_sides=2, environmental_thermal_load_W_m2=0.0,
+    )
     area, T_used, ok = phys.required_radiator_area(1000.0, cfg)  # 1 MW
     assert ok and T_used == 318.0
     assert area == pytest.approx(958.2, abs=2.0)
+
+
+def test_radiator_flux_anchors_real_leo():
+    # At 318 K with 0.9 emissivity and ~250 W/m^2 Earth IR loading the model recovers a
+    # net single-face flux of ~297 W/m^2 -- inside NASA's reported 100-350 W/m^2 range
+    # for real spacecraft radiators (https://www.nasa.gov/smallsat-institute/sst-soa/thermal-control/).
+    cfg = SystemConfig(
+        radiator_emissivity=0.9, T_sink_K=3.0,
+        environmental_thermal_load_W_m2=250.0,
+    )
+    q = phys.radiator_flux(cfg, 318.0)
+    assert 100.0 <= q <= 350.0
+    assert q == pytest.approx(296.8, abs=0.5)
+
+
+def test_environmental_load_reduces_flux():
+    base = SystemConfig(radiator_emissivity=0.9, T_sink_K=3.0, environmental_thermal_load_W_m2=0.0)
+    leo = replace(base, environmental_thermal_load_W_m2=250.0)
+    assert phys.radiator_flux(leo, 318.0) < phys.radiator_flux(base, 318.0)
 
 
 def test_radiator_two_sided_halves_area():

@@ -29,11 +29,17 @@ Then open the URL Streamlit prints (default http://localhost:8501).
   Solar and thermal sizing are coupled, not independent.
 - **Solar generation.** Dawn-dusk Sun-synchronous orbit gives near-continuous sunlight at
   the solar constant (1361 W/m², ~36% above Earth's surface). Array area =
-  `load / (efficiency × 1361 × illumination)`.
-- **Radiative cooling (Stefan-Boltzmann).** `q = ε·σ·(T⁴ − T_sink⁴)`. Radiators are
-  modeled as two-sided deployable panels (configurable), sized at a 318 K (45 °C) surface
-  cap. The model flags thermal *survivability* failures when no finite radiator could
-  reject the heat.
+  `load / (efficiency × 1361 × illumination)`. Default solar mass uses **3.5 kg/m²**,
+  anchored to NASA's flight-proven Roll-Out Solar Array (ROSA: ~325 kg per 82 m² = 3.95
+  kg/m² with the composite booms that double as structure and actuator -- no motors).
+- **Radiative cooling (Stefan-Boltzmann + environmental load).**
+  `q_net = ε·(σ·(T⁴ − T_sink⁴) − environmental_load)`. Radiators in LEO absorb incident
+  Earth IR (~240 W/m² at an effective 255 K) plus albedo; by Kirchhoff's law absorbed and
+  emitted IR share the same emissivity, so the absorbed load is `ε × env_load`. At 318 K
+  with ε=0.9 and the default 250 W/m² LEO env load, the model recovers **~297 W/m²
+  net single-face** — squarely inside the [100–350 W/m² range NASA reports for real
+  spacecraft radiators](https://www.nasa.gov/smallsat-institute/sst-soa/thermal-control/).
+  Set `environmental_thermal_load_W_m2 = 0` for the deep-space ideal (522 W/m²).
 - **Mass.** Compute + solar + radiator mass, scaled up by a structural/bus multiplier;
   total dry mass drives launch cost.
 

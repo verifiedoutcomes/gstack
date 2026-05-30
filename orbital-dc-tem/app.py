@@ -147,6 +147,11 @@ with st.sidebar.expander("Spacecraft Engineering"):
     st.number_input("Radiator width (m)", min_value=0.5, max_value=100.0, step=0.5, key="radiator_width_m")
     st.number_input("Deep-space sink temp (K)", min_value=2.7, max_value=300.0, step=1.0, key="T_sink_K")
     st.number_input("Max surface temp (K)", min_value=273.0, max_value=400.0, step=1.0, key="T_surface_max_K")
+    st.number_input(
+        "Environmental load (W/m²)", min_value=0.0, max_value=500.0, step=10.0,
+        key="environmental_thermal_load_W_m2",
+        help="Incident Earth IR + albedo absorbed by the radiator. ~250 W/m² in LEO; 0 for deep space.",
+    )
     st.number_input("Solar areal density (kg/m^2)", min_value=0.1, max_value=20.0, step=0.25, key="solar_areal_density_kg_m2")
     st.number_input("Radiator areal density (kg/m^2)", min_value=1.0, max_value=30.0, step=0.5, key="radiator_areal_density_kg_m2")
     st.number_input("Rack mass (kg)", min_value=50.0, max_value=5000.0, step=50.0, key="rack_mass_kg")

@@ -47,12 +47,22 @@ def solar_generation(area_m2: float, cfg: SystemConfig) -> float:
 
 
 def radiator_flux(cfg: SystemConfig, T_radiator: float) -> float:
-    """Single-face radiative heat flux (W/m^2) via Stefan-Boltzmann.
+    """Net single-face radiative heat flux (W/m^2) after environmental loading.
 
-    ``q = epsilon . sigma . (T_radiator^4 - T_sink^4)``. Can be <= 0 if the sink is as hot
-    as the radiator, which means no heat can be rejected.
+    Gross emission via Stefan-Boltzmann: ``epsilon . sigma . (T_radiator^4 - T_sink^4)``.
+    A radiator in low Earth orbit also *absorbs* incident planetary IR (Earth radiates at
+    an effective ~255 K, ~240 W/m^2) and albedo. By Kirchhoff's law the absorptivity for
+    long-wave Earth IR matches the radiator's emissivity, so the absorbed load is
+    ``epsilon . environmental_thermal_load_W_m2``. The result is the *net* rejection:
+
+        q_net = epsilon . (sigma . (T_rad^4 - T_sink^4) - environmental_load)
+
+    Real spacecraft radiators in LEO reject 100-350 W/m^2 net (NASA SST-SOA), and this
+    formula recovers ~300 W/m^2 single-face at 318 K with 250 W/m^2 environmental load.
+    Set ``environmental_thermal_load_W_m2 = 0`` for the deep-space ideal.
     """
-    return cfg.radiator_emissivity * SIGMA * (T_radiator**4 - cfg.T_sink_K**4)
+    gross = SIGMA * (T_radiator**4 - cfg.T_sink_K**4)
+    return cfg.radiator_emissivity * (gross - cfg.environmental_thermal_load_W_m2)
 
 
 def required_radiator_area(P_dissipated_kW: float, cfg: SystemConfig) -> tuple[float, float, bool]:

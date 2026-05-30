@@ -32,12 +32,13 @@ class SystemConfig:
     # --- Solar ---
     panel_efficiency: float = 0.30  # space-grade multi-junction (0.28-0.32)
     illumination_fraction: float = 1.0  # dawn-dusk SSO ~ continuous sun; <1 adds eclipse
-    solar_areal_density_kg_m2: float = 1.75  # deployable array mass per m^2
+    solar_areal_density_kg_m2: float = 3.5  # ROSA-class deployable array (~325 kg / 82 m^2)
 
     # --- Thermal / radiator ---
     radiator_emissivity: float = 0.90
-    T_sink_K: float = 3.0  # deep-space sink; raise for LEO Earth-IR/albedo loading
+    T_sink_K: float = 3.0  # deep-space sink; environmental IR is captured separately below
     T_surface_max_K: float = 318.0  # 45 C chassis/junction survivability cap
+    environmental_thermal_load_W_m2: float = 250.0  # incident Earth IR + albedo in LEO (~240 W/m^2 Earth IR plus albedo); set to 0 for deep space
     radiator_sides: int = 2  # 1 or 2 -- two-sided panels halve required footprint
     radiator_width_m: float = 10.0  # used to convert area to a length KPI
     radiator_areal_density_kg_m2: float = 8.0  # deployable radiator mass per m^2 (5-12)
@@ -169,6 +170,8 @@ def validate_config(cfg: SystemConfig) -> tuple[list[str], list[str]]:
         errors.append("Radiator emissivity must be greater than 0.")
     if cfg.radiator_sides not in (1, 2):
         errors.append("Radiator sides must be 1 or 2.")
+    if cfg.environmental_thermal_load_W_m2 < 0:
+        errors.append("Environmental thermal load cannot be negative.")
     if cfg.illumination_fraction <= 0:
         errors.append("Illumination fraction must be greater than 0.")
 
